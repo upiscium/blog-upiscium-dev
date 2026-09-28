@@ -3,7 +3,7 @@ import { getCollection } from 'astro:content';
 import { getEffectiveSlug, getPublishedPosts } from '../../lib/blog';
 
 const posts = getPublishedPosts(await getCollection('blog'))
-  .sort((a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime());
+  .sort((a, b) => b.data.publishedAt.getTime() - a.data.publishedAt.getTime());
 ---
 
 <html lang="ja">
@@ -20,12 +20,12 @@ const posts = getPublishedPosts(await getCollection('blog'))
         {posts.map((post) => (
           <a class="card" href={`/blog/${getEffectiveSlug(post)}/`}>
             <div>
-              <p class="meta">{post.data.pubDate.toISOString().slice(0, 10)}</p>
+              <p class="meta">{post.data.publishedAt.toISOString().slice(0, 10)}</p>
               <h2>{post.data.title}</h2>
               <p>{post.data.description}</p>
             </div>
             <div class="tags">
-              {post.data.tags.map((tag) => <span>{`#${tag}`}</span>)}
+              {post.data.tags.map((tag: string) => <span>{`#${tag}`}</span>)}
             </div>
           </a>
         ))}
