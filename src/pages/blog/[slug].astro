@@ -1,22 +1,21 @@
 ---
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
+import { getEffectiveSlug, getPublishedPosts } from '../../lib/blog';
 
 export async function getStaticPaths() {
-  const posts = await getCollection('blog');
+  const posts = getPublishedPosts(await getCollection('blog'));
 
-  return posts
-    .filter((post) => !post.data.draft)
-    .map((post) => ({
-      params: { slug: post.slug },
-      props: { post },
-    }));
+  return posts.map((post) => ({
+    params: { slug: getEffectiveSlug(post) },
+    props: { post },
+  }));
 }
 
 const { post } = Astro.props;
-const { Content } = await post.render();
+const { Content } = await render(post);
 ---
 
-<html lang="ja">
+<html lang={post.data.lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -26,7 +25,7 @@ const { Content } = await post.render();
   <body>
     <main class="page">
       <a href="/blog/">← Back</a>
-      <p class="eyebrow">{post.data.pubDate.toISOString().slice(0, 10)}</p>
+      <p class="eyebrow">{post.data.publishedAt.toISOString().slice(0, 10)}</p>
       <h1>{post.data.title}</h1>
       <p class="lead">{post.data.description}</p>
       <article class="content">
