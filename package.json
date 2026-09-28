@@ -2,18 +2,17 @@
   "name": "homepage-starter",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "start": "astro preview",
-    "lint": "eslint"
-  },
-  "dependencies": {
+    "start": "astro preview"
   },
   "devDependencies": {
-    "astro": "^5.0.0",
+    "astro": "^6.0.0",
     "@types/node": "^20",
-    "eslint": "^9",
     "remark-gfm": "^4.0.1",
     "typescript": "^5"
   }
