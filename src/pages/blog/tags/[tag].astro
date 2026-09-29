@@ -4,6 +4,7 @@ import SiteLayout from '../../../layouts/SiteLayout.astro';
 import {
   formatDate,
   getAllTags,
+  getTagEntries,
   getOrderedPosts,
   getPostsByTag,
   getPostPath,
@@ -13,14 +14,15 @@ import {
 
 export async function getStaticPaths() {
   const posts = getOrderedPosts(await getCollection('blog'));
+  const tagEntries = getTagEntries(getAllTags(posts));
 
-  return getAllTags(posts).map((tag: string) => ({
-    params: { tag },
-    props: { tag, posts: getPostsByTag(posts, tag) },
+  return tagEntries.map(({ display, identity }) => ({
+    params: { tag: identity },
+    props: { tag: display, tagIdentity: identity, posts: getPostsByTag(posts, display) },
   }));
 }
 
-const { tag, posts } = Astro.props;
+const { tag, tagIdentity, posts } = Astro.props;
 ---
 
 <SiteLayout
@@ -30,7 +32,7 @@ const { tag, posts } = Astro.props;
   <main class="page" aria-labelledby="tag-title">
     <a class="back-link" href="/blog/tags/">← All tags</a>
     <header class="page-header">
-      <p class="eyebrow">/blog/tags/{tag}</p>
+      <p class="eyebrow">/blog/tags/{tagIdentity}</p>
       <h1 id="tag-title">#{tag}</h1>
     </header>
 

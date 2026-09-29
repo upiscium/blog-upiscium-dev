@@ -3,20 +3,53 @@ import type { CollectionEntry } from 'astro:content';
 export type BlogPost = CollectionEntry<'blog'>;
 
 const canonicalSlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const canonicalTagPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const canonicalTagIdentityPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-function normalizeTag(tag: string): string {
-  const normalizedTag = tag.trim();
+function isProductionBuild(): boolean {
+  return typeof import.meta.env !== 'undefined' && import.meta.env.PROD;
+}
 
-  if (!normalizedTag) {
+function validateTagDisplay(tag: string): string {
+  if (!tag.trim()) {
     throw new Error('Blog tags must not be empty or whitespace.');
   }
 
-  if (!canonicalTagPattern.test(normalizedTag)) {
-    throw new Error(`Invalid blog tag "${tag}"; tags must be lowercase URL path segments.`);
+  return tag;
+}
+
+function getFallbackTagIdentity(tag: string): string {
+  const normalizedTag = tag.trim().normalize('NFC');
+  const codePoints = Array.from(normalizedTag, (character) =>
+    (character.codePointAt(0) ?? 0).toString(16),
+  ).join('');
+
+  return `tag-${codePoints}`;
+}
+
+/**
+ * Convert an arbitrary display label into the stable URL identity used by tag routes.
+ *
+ * Display labels are deliberately not rewritten: punctuation, whitespace, and non-ASCII
+ * characters remain visible to readers. The identity is only a route key. Labels that
+ * normalize to the same key are rejected by assertUniqueTagIdentities instead of being
+ * silently merged into one route.
+ */
+export function getTagIdentity(tag: string): string {
+  const displayTag = validateTagDisplay(tag);
+  const identity = displayTag
+    .trim()
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const routeIdentity = identity || getFallbackTagIdentity(displayTag);
+
+  if (!canonicalTagIdentityPattern.test(routeIdentity)) {
+    throw new Error(`Invalid blog tag identity "${routeIdentity}" for "${tag}".`);
   }
 
-  return normalizedTag;
+  return routeIdentity;
 }
 
 export function getEffectiveSlug(post: BlogPost): string {
@@ -46,6 +79,58 @@ export function assertUniqueEffectiveSlugs(posts: readonly BlogPost[]): void {
   }
 }
 
+/**
+ * Ensure every distinct display label has a distinct route identity.
+ *
+ * Slugification intentionally drops information (for example, `C++` and `C#` both
+ * become `c`). Failing before route generation keeps one label from shadowing another.
+ */
+export function assertUniqueTagIdentities(tags: readonly string[]): void {
+  const tagsByIdentity = new Map<string, string>();
+
+  for (const tag of tags) {
+    const displayTag = validateTagDisplay(tag);
+    const identity = getTagIdentity(displayTag);
+    const existingTag = tagsByIdentity.get(identity);
+
+    if (existingTag && existingTag !== displayTag) {
+      throw new Error(
+        `Tag identity collision for "${identity}": "${existingTag}" and "${displayTag}".`,
+      );
+    }
+
+    tagsByIdentity.set(identity, displayTag);
+  }
+}
+
+export interface TagEntry {
+  display: string;
+  identity: string;
+  path: string;
+}
+
+/**
+ * Return deterministic display/identity/path tuples for a tag collection.
+ * The collision assertion runs before any entries are returned so callers cannot
+ * accidentally generate a partial taxonomy.
+ */
+export function getTagEntries(tags: readonly string[]): TagEntry[] {
+  const uniqueTags = [...new Set(tags.map((tag) => validateTagDisplay(tag)))];
+  assertUniqueTagIdentities(uniqueTags);
+
+  return uniqueTags
+    .map((display) => {
+      const identity = getTagIdentity(display);
+
+      return {
+        display,
+        identity,
+        path: `/blog/tags/${identity}/`,
+      };
+    })
+    .sort((a, b) => (a.display < b.display ? -1 : a.display > b.display ? 1 : 0));
+}
+
 export interface PostVisibilityOptions {
   /** Override the build environment when a caller needs deterministic behavior. */
   includeDrafts?: boolean;
@@ -63,13 +148,14 @@ export function getVisiblePosts(
   options: PostVisibilityOptions = {},
 ): BlogPost[] {
   assertUniqueEffectiveSlugs(posts);
+  assertUniqueTagIdentities(posts.flatMap((post) => post.data.tags));
 
-  const includeDrafts = options.includeDrafts ?? !import.meta.env.PROD;
+  const includeDrafts = options.includeDrafts ?? !isProductionBuild();
   return includeDrafts ? [...posts] : posts.filter((post) => !post.data.draft);
 }
 
 export function isDevelopmentDraft(post: BlogPost): boolean {
-  return post.data.draft && !import.meta.env.PROD;
+  return post.data.draft && !isProductionBuild();
 }
 
 export function getPublishedPosts(posts: readonly BlogPost[]): BlogPost[] {
@@ -77,6 +163,8 @@ export function getPublishedPosts(posts: readonly BlogPost[]): BlogPost[] {
 }
 
 export function sortPostsByPublishedAt(posts: readonly BlogPost[]): BlogPost[] {
+  assertUniqueEffectiveSlugs(posts);
+
   return [...posts].sort((a, b) => {
     const dateDifference = b.data.publishedAt.getTime() - a.data.publishedAt.getTime();
 
@@ -103,23 +191,23 @@ export function getPostPath(post: BlogPost): string {
 }
 
 export function getAllTags(posts: readonly BlogPost[]): string[] {
-  const tags = posts.flatMap((post) => post.data.tags.map((tag: string) => normalizeTag(tag)));
-
-  return [...new Set(tags)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return getTagEntries(posts.flatMap((post) => post.data.tags)).map((entry) => entry.display);
 }
 
 export function getPostsByTag(posts: readonly BlogPost[], tag: string): BlogPost[] {
-  const normalizedTag = normalizeTag(tag);
+  const displayTag = validateTagDisplay(tag);
+  assertUniqueEffectiveSlugs(posts);
+  assertUniqueTagIdentities(posts.flatMap((post) => post.data.tags));
 
   return sortPostsByPublishedAt(
     posts.filter((post) =>
-      post.data.tags.some((postTag: string) => normalizeTag(postTag) === normalizedTag),
+      post.data.tags.some((postTag: string) => postTag === displayTag),
     ),
   );
 }
 
 export function getTagPath(tag: string): string {
-  return `/blog/tags/${encodeURIComponent(normalizeTag(tag))}/`;
+  return `/blog/tags/${getTagIdentity(tag)}/`;
 }
 
 export function formatDate(date: Date): string {

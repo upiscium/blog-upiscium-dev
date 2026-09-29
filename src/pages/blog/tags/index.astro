@@ -1,10 +1,19 @@
 ---
 import { getCollection } from 'astro:content';
 import SiteLayout from '../../../layouts/SiteLayout.astro';
-import { getAllTags, getOrderedPosts, getPostsByTag, getTagPath } from '../../../lib/blog';
+import {
+  getAllTags,
+  getOrderedPosts,
+  getPostsByTag,
+  getTagEntries,
+  isDevelopmentDraft,
+} from '../../../lib/blog';
 
 const posts = getOrderedPosts(await getCollection('blog'));
-const tags = getAllTags(posts);
+const tags = getTagEntries(getAllTags(posts)).map((tag) => ({
+  ...tag,
+  posts: getPostsByTag(posts, tag.display),
+}));
 ---
 
 <SiteLayout title="Tags // upiscium" description="upiscium の記事をタグから探す。">
@@ -17,10 +26,15 @@ const tags = getAllTags(posts);
 
     {tags.length > 0 ? (
       <ul class="tag-index">
-        {tags.map((tag: string) => (
+        {tags.map((tag) => (
           <li>
-            <a href={getTagPath(tag)}>#{tag}</a>
-            <span>{getPostsByTag(posts, tag).length} posts</span>
+            <a href={tag.path}>#{tag.display}</a>
+            <span class="tag-meta">
+              {tag.posts.some(isDevelopmentDraft) && (
+                <span class="draft-badge">DRAFT · DEVELOPMENT</span>
+              )}
+              <span>{tag.posts.length} posts</span>
+            </span>
           </li>
         ))}
       </ul>
@@ -90,5 +104,20 @@ const tags = getAllTags(posts);
   .tag-index span {
     color: var(--muted);
     font-size: 0.9rem;
+  }
+
+  .tag-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    text-align: right;
+  }
+
+  .tag-index .draft-badge {
+    color: var(--accent-2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 </style>

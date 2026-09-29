@@ -30,7 +30,20 @@ const posts = getOrderedPosts(await getCollection('blog'));
             <article class="card">
               <a class="card-link" href={getPostPath(post)}>
                 <div class="post-meta">
-                  <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+                  <span>
+                    <span class="meta-label">Published</span>
+                    <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+                  </span>
+                  <span>
+                    <span class="meta-label">Language</span>
+                    {post.data.lang}
+                  </span>
+                  {post.data.updatedAt && (
+                    <span>
+                      <span class="meta-label">Updated</span>
+                      <time datetime={post.data.updatedAt.toISOString()}>{formatDate(post.data.updatedAt)}</time>
+                    </span>
+                  )}
                   {isDevelopmentDraft(post) && (
                     <span class="draft-badge">DRAFT · DEVELOPMENT</span>
                   )}
@@ -84,6 +97,15 @@ const posts = getOrderedPosts(await getCollection('blog'));
     font-size: 0.8rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
+  }
+
+  .post-meta > span {
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  .meta-label {
+    color: var(--muted);
   }
 
   .lead,
