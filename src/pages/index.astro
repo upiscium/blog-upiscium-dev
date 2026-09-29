@@ -1,159 +1,83 @@
 ---
 import { getCollection } from 'astro:content';
-import { getEffectiveSlug, getPublishedPosts } from '../lib/blog';
+import SiteLayout from '../layouts/SiteLayout.astro';
+import {
+  formatDate,
+  getOrderedPosts,
+  getPostPath,
+  getTagPath,
+  isDevelopmentDraft,
+} from '../lib/blog';
 
-const posts = getPublishedPosts(await getCollection('blog'))
-  .sort((a, b) => b.data.publishedAt.getTime() - a.data.publishedAt.getTime());
-
-const works = [
-  {
-    name: 'Realtime Dashboard',
-    stack: 'Astro, TypeScript, WebSocket',
-    role: 'UI / Performance',
-  },
-  {
-    name: 'Developer Notes Hub',
-    stack: 'Markdown, RSS, Search',
-    role: 'Content / IA',
-  },
-  {
-    name: 'Ops Logbook',
-    stack: 'Next.js, API, PostgreSQL',
-    role: 'Full Stack',
-  },
-];
+const posts = getOrderedPosts(await getCollection('blog'));
 ---
 
-<!doctype html>
-<html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PORTFOLIO // SIGNAL</title>
-    <meta
-      name="description"
-      content="CLI/サイバー感のある、Blog中心のポートフォリオサイト。"
-    />
-  </head>
-  <body>
-    <main class="shell">
-      <section class="hero panel">
-        <p class="eyebrow">status: online / profile loaded</p>
-        <h1>&gt; hi, i'm a developer building sharp interfaces and useful systems.</h1>
-        <p class="lead">
-          Blogを中心に、設計・実装・運用の視点を発信するポートフォリオ。
-          端末のような手触りで、技術の温度感が伝わる構成にしています。
-        </p>
-        <div class="stats">
-          <div><span>focus</span><strong>blog / systems</strong></div>
-          <div><span>stack</span><strong>Astro / TS / UI</strong></div>
-          <div><span>mode</span><strong>CLI cyber</strong></div>
+<SiteLayout
+  title="upiscium // blog"
+  description="upiscium の設計・実装・運用に関する技術ブログ。"
+>
+  <main class="page home-page">
+    <section class="hero panel" aria-labelledby="home-title">
+      <p class="eyebrow">handle: upiscium</p>
+      <h1 id="home-title">Technical notes for building useful systems.</h1>
+      <p class="lead">
+        設計・実装・運用の視点から、日々の開発で得た知見を記録しています。
+        新しい記事はこのブログに追加していきます。
+      </p>
+      <a class="primary-link" href="/blog/">Read the latest posts →</a>
+    </section>
+
+    <section class="panel posts-panel" aria-labelledby="latest-posts-title">
+      <div class="section-head">
+        <div>
+          <p class="section-label">/blog</p>
+          <h2 id="latest-posts-title">Latest posts</h2>
         </div>
-      </section>
+        <a href="/blog/">View all posts →</a>
+      </div>
 
-      <section class="grid">
-        <article class="panel">
-          <p class="section-label">/about</p>
-          <h2>Profile</h2>
-          <p>
-            フロントエンドを軸に、読みやすさと構造を大事にするエンジニア。
-            画面の見た目だけでなく、記事や機能が育つ土台づくりを重視します。
-          </p>
-        </article>
-
-        <article class="panel">
-          <p class="section-label">/works</p>
-          <h2>Works</h2>
-          <ul class="list">
-            {works.map((work) => (
-              <li>
-                <strong>{work.name}</strong>
-                <span>{work.stack}</span>
-                <small>{work.role}</small>
-              </li>
-            ))}
-          </ul>
-        </article>
-      </section>
-
-      <section class="panel blog">
-        <div class="section-head">
-          <div>
-            <p class="section-label">/blog</p>
-            <h2>Recent Posts</h2>
-          </div>
-          <p class="muted">latest logs / engineering notes</p>
-        </div>
-        <div class="posts">
+      {posts.length > 0 ? (
+        <ol class="posts">
           {posts.map((post) => (
-            <a class="post-card" href={`/blog/${getEffectiveSlug(post)}/`}>
-              <div class="post-meta">
-                <span>{post.data.publishedAt.toISOString().slice(0, 10)}</span>
-                {post.data.tags[0] && <span>#{post.data.tags[0]}</span>}
-              </div>
-              <h3>{post.data.title}</h3>
-              <p>{post.data.description}</p>
-            </a>
+            <li class="post-card">
+              <a class="post-card-link" href={getPostPath(post)}>
+                <div class="post-meta">
+                  <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+                  {isDevelopmentDraft(post) && (
+                    <span class="draft-badge">DRAFT · DEVELOPMENT</span>
+                  )}
+                </div>
+                <h3>{post.data.title}</h3>
+                <p>{post.data.description}</p>
+              </a>
+              {post.data.tags.length > 0 && (
+                <ul class="tags" aria-label={`Tags for ${post.data.title}`}>
+                  {post.data.tags.map((tag: string) => (
+                    <li><a href={getTagPath(tag)}>#{tag}</a></li>
+                  ))}
+                </ul>
+              )}
+            </li>
           ))}
-        </div>
-      </section>
+        </ol>
+      ) : (
+        <p class="muted">No posts have been published yet.</p>
+      )}
+    </section>
 
-      <section class="panel footer-panel">
-        <p class="section-label">/contact</p>
-        <h2>Signal</h2>
-        <p>
-          GitHub / X / Mail を並べて、記事更新や制作物に自然につなげる想定です。
-        </p>
-      </section>
-    </main>
-  </body>
-</html>
+    <section class="panel about-panel" aria-labelledby="about-title">
+      <p class="section-label">/about</p>
+      <h2 id="about-title">About this log</h2>
+      <p>
+        読みやすい構造と、記事や機能が育つ土台づくりを大切にしています。
+        制作物やプロフィールは、準備ができたものから追加します。
+      </p>
+    </section>
+  </main>
+</SiteLayout>
 
-<style is:global>
-  :root {
-    color-scheme: dark;
-    --bg: #050816;
-    --panel: rgba(10, 18, 36, 0.82);
-    --line: rgba(93, 243, 255, 0.18);
-    --text: #d7f6ff;
-    --muted: #86a9b6;
-    --accent: #5df3ff;
-    --accent-2: #7cffb2;
-  }
-
-  * {
-    box-sizing: border-box;
-  }
-
-  html {
-    scroll-behavior: smooth;
-  }
-
-  body {
-    margin: 0;
-    min-height: 100vh;
-    background:
-      radial-gradient(circle at top, rgba(93, 243, 255, 0.12), transparent 36%),
-      linear-gradient(180deg, #050816 0%, #02040b 100%);
-    color: var(--text);
-    font-family: Inter, system-ui, sans-serif;
-  }
-
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background-image: linear-gradient(rgba(93, 243, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(93, 243, 255, 0.05) 1px, transparent 1px);
-    background-size: 32px 32px;
-    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent 90%);
-  }
-
-  .shell {
-    width: min(1100px, calc(100% - 32px));
-    margin: 0 auto;
-    padding: 32px 0 64px;
+<style>
+  .page {
     display: grid;
     gap: 20px;
   }
@@ -167,125 +91,148 @@ const works = [
     box-shadow: 0 0 0 1px rgba(93, 243, 255, 0.04), 0 24px 80px rgba(0, 0, 0, 0.35);
   }
 
-  .hero h1,
+  h1,
+  h2,
+  h3,
+  p {
+    margin-top: 0;
+  }
+
+  h1,
   h2,
   h3 {
-    margin: 0;
     line-height: 1.1;
   }
 
   .hero h1 {
     max-width: 14ch;
-    font-size: clamp(2.6rem, 6vw, 5.2rem);
     margin-top: 8px;
-  }
-
-  .lead,
-  .panel p,
-  .muted,
-  .list span,
-  .list small,
-  .post-card p {
-    color: var(--muted);
+    font-size: clamp(2.6rem, 6vw, 5.2rem);
   }
 
   .eyebrow,
   .section-label,
   .post-meta,
-  .stats span {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    font-size: 0.75rem;
+  .draft-badge {
     color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .lead,
+  .about-panel p,
+  .muted,
+  .post-card p {
+    color: var(--muted);
+    line-height: 1.8;
   }
 
   .lead {
     max-width: 60ch;
     font-size: 1.05rem;
-    line-height: 1.8;
   }
 
-  .stats {
-    margin-top: 24px;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .stats div,
-  .post-card,
-  .list li {
-    border: 1px solid rgba(93, 243, 255, 0.1);
-    background: rgba(3, 10, 24, 0.5);
-    border-radius: 16px;
-    padding: 16px;
-  }
-
-  .stats strong,
-  .list strong,
-  .post-card h3 {
-    display: block;
+  .primary-link {
+    display: inline-block;
     margin-top: 8px;
-    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
   }
 
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px;
+  .section-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
   }
 
-  .list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: grid;
-    gap: 12px;
+  .section-head h2 {
+    margin-bottom: 0;
+  }
+
+  .section-head a {
+    white-space: nowrap;
   }
 
   .posts {
     display: grid;
     gap: 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
-  .post-meta,
-  .section-head {
+  .post-card {
+    border: 1px solid rgba(93, 243, 255, 0.1);
+    border-radius: 16px;
+    padding: 16px;
+    background: rgba(3, 10, 24, 0.5);
+  }
+
+  .post-card-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .post-card-link:hover h3,
+  .post-card-link:focus-visible h3 {
+    color: var(--accent);
+  }
+
+  .post-meta {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
   }
 
-  .blog h2,
-  .footer-panel h2 {
-    margin-top: 8px;
+  .post-card h3 {
+    margin: 8px 0 0;
+    color: var(--text);
   }
 
-  .section-head {
-    margin-bottom: 16px;
+  .post-card p {
+    margin: 8px 0 0;
   }
 
-  .footer-panel {
+  .draft-badge {
+    color: var(--accent-2);
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tags a {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+  }
+
+  .about-panel {
     display: grid;
     gap: 8px;
   }
 
-  @media (max-width: 760px) {
-    .grid,
-    .stats {
-      grid-template-columns: 1fr;
-    }
+  .about-panel p:last-child {
+    margin-bottom: 0;
+  }
 
+  @media (max-width: 760px) {
     .section-head,
     .post-meta {
       align-items: flex-start;
       flex-direction: column;
-    }
-
-    .shell {
-      width: min(100% - 20px, 1100px);
-      padding-top: 20px;
     }
   }
 </style>

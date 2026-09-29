@@ -1,0 +1,144 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+  lang?: string;
+}
+
+const { title, description, lang = 'ja' } = Astro.props;
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="upiscium home">upiscium</a>
+        <nav aria-label="Primary navigation">
+          <ul class="site-nav">
+            <li><a href="/">Home</a></li>
+            <li><a href="/blog/">Blog</a></li>
+            <li><a href="/blog/tags/">Tags</a></li>
+          </ul>
+        </nav>
+      </header>
+      <slot />
+    </div>
+  </body>
+</html>
+
+<style>
+  :global(:root) {
+    color-scheme: dark;
+    --bg: #050816;
+    --panel: rgba(10, 18, 36, 0.82);
+    --line: rgba(93, 243, 255, 0.18);
+    --text: #d7f6ff;
+    --muted: #86a9b6;
+    --accent: #5df3ff;
+    --accent-2: #7cffb2;
+  }
+
+  :global(*) {
+    box-sizing: border-box;
+  }
+
+  :global(body) {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top, rgba(93, 243, 255, 0.12), transparent 36%),
+      linear-gradient(180deg, #050816 0%, #02040b 100%);
+    color: var(--text);
+    font-family: Inter, system-ui, sans-serif;
+  }
+
+  :global(body::before) {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: linear-gradient(rgba(93, 243, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(93, 243, 255, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent 90%);
+  }
+
+  :global(a) {
+    color: var(--accent-2);
+  }
+
+  :global(a:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+
+  .site-shell {
+    width: min(1100px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 24px 0 64px;
+  }
+
+  .site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 0 4px 24px;
+  }
+
+  .brand {
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+  }
+
+  .site-nav,
+  .site-nav ul {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .site-nav a {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+    text-decoration: none;
+  }
+
+  .site-nav a:hover,
+  .site-nav a:focus-visible {
+    color: var(--accent);
+  }
+
+  @media (max-width: 560px) {
+    .site-shell {
+      width: min(100% - 20px, 1100px);
+      padding-top: 16px;
+    }
+
+    .site-header {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .site-nav,
+    .site-nav ul {
+      gap: 12px;
+    }
+  }
+</style>
