@@ -56,10 +56,28 @@ const { Content } = await render(post);
     font-family: ui-monospace, monospace;
     color: #5df3ff;
   }
+
+  .eyebrow::after {
+    content: '_';
+    margin-left: 0.15em;
+    animation: blink 1s steps(1, end) infinite;
+  }
+
+  a {
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: #7cffb2;
+  }
   .lead,
   .content {
     color: #86a9b6;
-    line-height: 1.8;
+    line-height: 1.9;
+  }
+  .content {
+    letter-spacing: 0.01em;
+    word-spacing: 0.02em;
   }
   .content :global(pre) {
     overflow: auto;
@@ -90,6 +108,11 @@ const { Content } = await render(post);
   .content :global(blockquote),
   .content :global(table) {
     margin-bottom: 1rem;
+  }
+  .content :global(p),
+  .content :global(li),
+  .content :global(blockquote) {
+    line-height: 1.9;
   }
   .content :global(ul),
   .content :global(ol) {
@@ -130,5 +153,16 @@ const { Content } = await render(post);
   .content :global(img) {
     max-width: 100%;
     border-radius: 16px;
+  }
+
+  @keyframes blink {
+    0%,
+    49% {
+      opacity: 1;
+    }
+    50%,
+    100% {
+      opacity: 0;
+    }
   }
 </style>

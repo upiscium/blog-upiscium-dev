@@ -22,6 +22,7 @@ const works = [
     role: 'Full Stack',
   },
 ];
+
 ---
 
 <!doctype html>
@@ -44,6 +45,15 @@ const works = [
           Blogを中心に、設計・実装・運用の視点を発信するポートフォリオ。
           端末のような手触りで、技術の温度感が伝わる構成にしています。
         </p>
+        <div class="terminal" data-terminal>
+          <div class="terminal-bar">
+            <span></span>
+            <span></span>
+            <span></span>
+            <small>session://home</small>
+          </div>
+          <div class="terminal-lines" data-terminal-log></div>
+        </div>
         <div class="stats">
           <div><span>focus</span><strong>blog / systems</strong></div>
           <div><span>stack</span><strong>Astro / TS / UI</strong></div>
@@ -106,6 +116,71 @@ const works = [
         </p>
       </section>
     </main>
+  <script is:inline>
+    const lines = [
+      ['whoami', 'developer focused on blog-driven portfolios'],
+      ['pwd', '/home/profile'],
+      ['ls', 'about  works  blog  contact'],
+      ['echo', 'designing a site that feels alive'],
+      ['git', 'status: building / branch: develop'],
+      ['cat', 'posts/first-log.md'],
+    ];
+
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const run = async () => {
+      const root = document.querySelector('[data-terminal]');
+      if (!root) return;
+
+      const log = root.querySelector('[data-terminal-log]');
+      if (!log) return;
+
+      log.innerHTML = '<p class="terminal-row"><span class="cmd">&gt;</span><span class="out">booting session...</span></p>';
+
+      const scrollToBottom = () => {
+        log.scrollTop = log.scrollHeight;
+      };
+
+      scrollToBottom();
+      await wait(350);
+
+      log.innerHTML = '<p class="terminal-row"><span class="cmd">whoami</span><span class="out">developer focused on blog-driven portfolios</span></p>';
+      scrollToBottom();
+      await wait(500);
+
+      for (const [cmd, out] of lines.slice(1)) {
+        const row = document.createElement('p');
+        row.className = 'terminal-row';
+
+        const cmdNode = document.createElement('span');
+        cmdNode.className = 'cmd';
+
+        const outNode = document.createElement('span');
+        outNode.className = 'out';
+
+        row.append(cmdNode, outNode);
+        log.append(row);
+
+        for (const char of cmd) {
+          cmdNode.textContent += char;
+          await wait(28);
+          scrollToBottom();
+        }
+
+        await wait(160);
+
+        for (const char of out) {
+          outNode.textContent += char;
+          await wait(16);
+          scrollToBottom();
+        }
+
+        await wait(220);
+      }
+    };
+
+    run();
+  </script>
   </body>
 </html>
 
@@ -137,6 +212,9 @@ const works = [
       linear-gradient(180deg, #050816 0%, #02040b 100%);
     color: var(--text);
     font-family: Inter, system-ui, sans-serif;
+    letter-spacing: 0.01em;
+    word-spacing: 0.02em;
+    text-rendering: geometricPrecision;
   }
 
   body::before {
@@ -145,8 +223,10 @@ const works = [
     inset: 0;
     pointer-events: none;
     background-image: linear-gradient(rgba(93, 243, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(93, 243, 255, 0.05) 1px, transparent 1px);
-    background-size: 32px 32px;
+      linear-gradient(90deg, rgba(93, 243, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(rgba(124, 255, 178, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 255, 178, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px, 32px 32px, 160px 160px, 160px 160px;
     mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent 90%);
   }
 
@@ -159,12 +239,17 @@ const works = [
   }
 
   .panel {
-    border: 1px solid var(--line);
-    background: var(--panel);
+    border: 1px solid rgba(93, 243, 255, 0.18);
+    background:
+      linear-gradient(180deg, rgba(10, 18, 36, 0.92), rgba(3, 10, 24, 0.82)),
+      var(--panel);
     backdrop-filter: blur(16px);
     border-radius: 20px;
     padding: 24px;
-    box-shadow: 0 0 0 1px rgba(93, 243, 255, 0.04), 0 24px 80px rgba(0, 0, 0, 0.35);
+    box-shadow:
+      0 0 0 1px rgba(93, 243, 255, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 24px 80px rgba(0, 0, 0, 0.35);
   }
 
   .hero h1,
@@ -178,6 +263,15 @@ const works = [
     max-width: 14ch;
     font-size: clamp(2.6rem, 6vw, 5.2rem);
     margin-top: 8px;
+    position: relative;
+  }
+
+  .hero h1::after {
+    content: '▍';
+    display: inline-block;
+    margin-left: 0.18em;
+    color: var(--accent-2);
+    animation: blink 1s steps(1, end) infinite;
   }
 
   .lead,
@@ -203,7 +297,90 @@ const works = [
   .lead {
     max-width: 60ch;
     font-size: 1.05rem;
-    line-height: 1.8;
+    line-height: 1.9;
+  }
+
+  .terminal {
+    margin-top: 20px;
+    border: 1px solid rgba(93, 243, 255, 0.22);
+    border-radius: 16px;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(3, 10, 24, 0.92), rgba(2, 6, 16, 0.98));
+  }
+
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(93, 243, 255, 0.16);
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .terminal-bar span {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(93, 243, 255, 0.28);
+    box-shadow: 0 0 10px rgba(93, 243, 255, 0.22);
+  }
+
+  .terminal-bar small {
+    margin-left: auto;
+    position: relative;
+    padding-right: 10px;
+  }
+
+  .terminal-bar small::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: 6px;
+    height: 14px;
+    transform: translateY(-50%);
+    background: var(--accent);
+    animation: blink 1s steps(1, end) infinite;
+  }
+
+  .terminal-lines {
+    padding: 14px;
+    max-height: 200px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+  }
+
+  .terminal-lines p {
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    align-items: start;
+    line-height: 1.9;
+    white-space: nowrap;
+  }
+
+  .terminal-row + .terminal-row {
+    margin-top: 6px;
+  }
+
+  .cmd,
+  .out {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.04em;
+  }
+
+  .cmd {
+    color: var(--accent);
+  }
+
+  .out {
+    color: var(--muted);
   }
 
   .stats {
@@ -216,8 +393,8 @@ const works = [
   .stats div,
   .post-card,
   .list li {
-    border: 1px solid rgba(93, 243, 255, 0.1);
-    background: rgba(3, 10, 24, 0.5);
+    border: 1px solid rgba(93, 243, 255, 0.14);
+    background: linear-gradient(180deg, rgba(3, 10, 24, 0.62), rgba(3, 10, 24, 0.42));
     border-radius: 16px;
     padding: 16px;
   }
@@ -228,6 +405,14 @@ const works = [
     display: block;
     margin-top: 8px;
     color: var(--text);
+  }
+
+  .stats strong,
+  .list span,
+  .list small,
+  .post-card p,
+  .footer-panel p {
+    line-height: 1.85;
   }
 
   .grid {
@@ -271,6 +456,17 @@ const works = [
     gap: 8px;
   }
 
+  @keyframes blink {
+    0%,
+    49% {
+      opacity: 1;
+    }
+    50%,
+    100% {
+      opacity: 0;
+    }
+  }
+
   @media (max-width: 760px) {
     .grid,
     .stats {
@@ -281,6 +477,16 @@ const works = [
     .post-meta {
       align-items: flex-start;
       flex-direction: column;
+    }
+
+    .terminal-lines p {
+      white-space: normal;
+      grid-template-columns: 1fr;
+    }
+
+    .terminal-lines p {
+      white-space: normal;
+      grid-template-columns: 1fr;
     }
 
     .shell {
