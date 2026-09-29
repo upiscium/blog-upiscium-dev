@@ -1,6 +1,6 @@
 ---
 slug: terminal-workflow
-lang: en
+lang: ja
 title: My Terminal Workflow for Daily Development
 description: CLI中心の開発環境を整えるためのツールと習慣を整理したメモ。
 publishedAt: 2026-03-28
