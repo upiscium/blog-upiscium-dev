@@ -1,0 +1,123 @@
+---
+import { getCollection } from 'astro:content';
+import SiteLayout from '../../../layouts/SiteLayout.astro';
+import {
+  getAllTags,
+  getOrderedPosts,
+  getPostsByTag,
+  getTagEntries,
+  isDevelopmentDraft,
+} from '../../../lib/blog';
+
+const posts = getOrderedPosts(await getCollection('blog'));
+const tags = getTagEntries(getAllTags(posts)).map((tag) => ({
+  ...tag,
+  posts: getPostsByTag(posts, tag.display),
+}));
+---
+
+<SiteLayout title="Tags // upiscium" description="upiscium の記事をタグから探す。">
+  <main class="page" aria-labelledby="tags-title">
+    <header class="page-header">
+      <p class="eyebrow">/blog/tags</p>
+      <h1 id="tags-title">Tags</h1>
+      <p class="lead">記事をテーマ別に探す。</p>
+    </header>
+
+    {tags.length > 0 ? (
+      <ul class="tag-index">
+        {tags.map((tag) => (
+          <li>
+            <a href={tag.path}>#{tag.display}</a>
+            <span class="tag-meta">
+              {tag.posts.some(isDevelopmentDraft) && (
+                <span class="draft-badge">DRAFT · DEVELOPMENT</span>
+              )}
+              <span>{tag.posts.length} posts</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="empty">No tags have been added yet.</p>
+    )}
+  </main>
+</SiteLayout>
+
+<style>
+  .page {
+    width: min(900px, 100%);
+    margin: 0 auto;
+  }
+
+  .page-header {
+    margin-bottom: 24px;
+  }
+
+  h1,
+  p {
+    margin-top: 0;
+  }
+
+  h1 {
+    line-height: 1.1;
+  }
+
+  .eyebrow {
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .lead,
+  .empty {
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .tag-index {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tag-index li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--panel);
+  }
+
+  .tag-index a {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1.05rem;
+  }
+
+  .tag-index span {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .tag-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    text-align: right;
+  }
+
+  .tag-index .draft-badge {
+    color: var(--accent-2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+</style>

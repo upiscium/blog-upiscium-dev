@@ -1,9 +1,16 @@
 ---
 import { getCollection, render } from 'astro:content';
-import { getEffectiveSlug, getPublishedPosts } from '../../lib/blog';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import {
+  formatDate,
+  getEffectiveSlug,
+  getOrderedPosts,
+  getTagPath,
+  isDevelopmentDraft,
+} from '../../lib/blog';
 
 export async function getStaticPaths() {
-  const posts = getPublishedPosts(await getCollection('blog'));
+  const posts = getOrderedPosts(await getCollection('blog'));
 
   return posts.map((post) => ({
     params: { slug: getEffectiveSlug(post) },
@@ -15,75 +22,201 @@ const { post } = Astro.props;
 const { Content } = await render(post);
 ---
 
-<html lang={post.data.lang}>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{post.data.title} // SIGNAL</title>
-    <meta name="description" content={post.data.description} />
-  </head>
-  <body>
-    <main class="page">
-      <a href="/blog/">← Back</a>
-      <p class="eyebrow">{post.data.publishedAt.toISOString().slice(0, 10)}</p>
-      <h1>{post.data.title}</h1>
-      <p class="lead">{post.data.description}</p>
-      <article class="content">
+<SiteLayout
+  title={`${post.data.title} // upiscium`}
+  description={post.data.description}
+  lang={post.data.lang}
+>
+  <main class="page" aria-labelledby="article-title">
+    <a class="back-link" href="/blog/">← Back to all posts</a>
+
+    <article>
+      <header class="article-header">
+        {isDevelopmentDraft(post) && (
+          <p class="draft-badge" role="status">DRAFT · DEVELOPMENT ONLY</p>
+        )}
+        <p class="eyebrow">article / {post.data.lang}</p>
+        <h1 id="article-title">{post.data.title}</h1>
+        <p class="lead">{post.data.description}</p>
+      </header>
+
+      <dl class="metadata" aria-label="Article metadata">
+        <div>
+          <dt>Language</dt>
+          <dd>{post.data.lang}</dd>
+        </div>
+        <div>
+          <dt>Published</dt>
+          <dd>
+            <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+          </dd>
+        </div>
+        {post.data.updatedAt && (
+          <div>
+            <dt>Updated</dt>
+            <dd>
+              <time datetime={post.data.updatedAt.toISOString()}>{formatDate(post.data.updatedAt)}</time>
+            </dd>
+          </div>
+        )}
+        <div>
+          <dt>Tags</dt>
+          <dd>
+            {post.data.tags.length > 0 ? (
+              <ul class="tag-list">
+                {post.data.tags.map((tag: string) => (
+                  <li><a href={getTagPath(tag)}>#{tag}</a></li>
+                ))}
+              </ul>
+            ) : (
+              '—'
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Origin</dt>
+          <dd>
+            {post.data.origin ? (
+              <a href={post.data.origin.url} rel="noreferrer">{post.data.origin.platform}</a>
+            ) : (
+              '—'
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>License</dt>
+          <dd>{post.data.license}</dd>
+        </div>
+      </dl>
+
+      <div class="content">
         <Content />
-      </article>
-    </main>
-  </body>
-</html>
+      </div>
+    </article>
+  </main>
+</SiteLayout>
 
 <style>
-  :global(h1, h2, h3, p) {
+  .page {
+    width: min(760px, 100%);
+    margin: 0 auto;
+  }
+
+  .back-link,
+  .eyebrow,
+  .draft-badge {
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: 32px;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+
+  .article-header h1,
+  .article-header p,
+  .content :global(h1),
+  .content :global(h2),
+  .content :global(h3),
+  .content :global(p) {
     margin-top: 0;
   }
 
-  body {
-    margin: 0;
-    background: #050816;
-    color: #d7f6ff;
-    font-family: system-ui, sans-serif;
-  }
-  .page {
-    width: min(760px, calc(100% - 32px));
-    margin: 0 auto;
-    padding: 32px 0 64px;
-  }
   .eyebrow,
-  a {
-    font-family: ui-monospace, monospace;
-    color: #5df3ff;
+  .draft-badge {
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
+
+  .draft-badge {
+    color: var(--accent-2);
+    font-weight: 700;
+  }
+
+  .article-header h1 {
+    margin-bottom: 12px;
+    font-size: clamp(2.2rem, 5vw, 4rem);
+    line-height: 1.1;
+  }
+
   .lead,
   .content {
-    color: #86a9b6;
+    color: var(--muted);
     line-height: 1.8;
   }
+
+  .metadata {
+    display: grid;
+    gap: 12px;
+    margin: 32px 0;
+    padding: 16px;
+    border: 1px solid rgba(93, 243, 255, 0.18);
+    border-radius: 16px;
+    background: rgba(10, 18, 36, 0.6);
+  }
+
+  .metadata > div {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .metadata dt {
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+  }
+
+  .metadata dd {
+    margin: 0;
+    color: var(--text);
+  }
+
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tag-list a {
+    color: var(--accent-2);
+  }
+
   .content :global(pre) {
     overflow: auto;
     padding: 16px;
+    border: 1px solid rgba(93, 243, 255, 0.18);
     border-radius: 16px;
     background: rgba(10, 18, 36, 0.82);
-    border: 1px solid rgba(93, 243, 255, 0.18);
   }
+
   .content :global(code) {
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
+
   .content :global(:not(pre) > code) {
     padding: 0.15rem 0.35rem;
     border-radius: 6px;
     background: rgba(93, 243, 255, 0.1);
-    color: #d7f6ff;
+    color: var(--text);
   }
+
   .content :global(h1),
   .content :global(h2),
   .content :global(h3) {
     margin-top: 2rem;
     margin-bottom: 0.75rem;
-    color: #d7f6ff;
+    color: var(--text);
   }
+
   .content :global(p),
   .content :global(ul),
   .content :global(ol),
@@ -91,44 +224,60 @@ const { Content } = await render(post);
   .content :global(table) {
     margin-bottom: 1rem;
   }
+
   .content :global(ul),
   .content :global(ol) {
     padding-left: 1.4rem;
   }
+
   .content :global(li + li) {
     margin-top: 0.35rem;
   }
+
   .content :global(blockquote) {
     margin-left: 0;
     padding: 0.1rem 0 0.1rem 1rem;
     border-left: 3px solid rgba(93, 243, 255, 0.5);
     color: #b6dce6;
   }
+
   .content :global(table) {
     width: 100%;
     border-collapse: collapse;
   }
+
   .content :global(th),
   .content :global(td) {
-    border: 1px solid rgba(93, 243, 255, 0.18);
     padding: 8px 12px;
+    border: 1px solid rgba(93, 243, 255, 0.18);
   }
+
   .content :global(th) {
     background: rgba(93, 243, 255, 0.08);
-    color: #d7f6ff;
+    color: var(--text);
     text-align: left;
   }
+
   .content :global(a) {
-    color: #7cffb2;
+    color: var(--accent-2);
     text-decoration-color: rgba(124, 255, 178, 0.6);
   }
+
   .content :global(hr) {
+    margin: 1.5rem 0;
     border: 0;
     border-top: 1px solid rgba(93, 243, 255, 0.18);
-    margin: 1.5rem 0;
   }
+
   .content :global(img) {
     max-width: 100%;
     border-radius: 16px;
+  }
+
+  @media (max-width: 560px) {
+    .metadata > div {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
   }
 </style>

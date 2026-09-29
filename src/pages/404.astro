@@ -1,16 +1,28 @@
 ---
+import SiteLayout from '../layouts/SiteLayout.astro';
 ---
 
-<html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>404</title>
-  </head>
-  <body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#050816;color:#d7f6ff;font-family:system-ui,sans-serif;">
-    <main>
-      <p style="font-family:ui-monospace,monospace;color:#5df3ff;">404 // signal lost</p>
-      <h1>Page not found</h1>
-    </main>
-  </body>
-</html>
+<SiteLayout
+  title="404 // upiscium"
+  description="The requested page could not be found."
+  lang="en"
+>
+  <main class="page" aria-labelledby="not-found-title">
+    <p class="eyebrow">404 // signal lost</p>
+    <h1 id="not-found-title">Page not found</h1>
+    <p><a href="/">Return home →</a></p>
+  </main>
+</SiteLayout>
+
+<style>
+  .page {
+    display: grid;
+    min-height: 60vh;
+    align-content: center;
+  }
+
+  .eyebrow {
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+</style>

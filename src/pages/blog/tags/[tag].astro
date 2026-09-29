@@ -1,26 +1,39 @@
 ---
 import { getCollection } from 'astro:content';
-import SiteLayout from '../../layouts/SiteLayout.astro';
+import SiteLayout from '../../../layouts/SiteLayout.astro';
 import {
   formatDate,
+  getAllTags,
+  getTagEntries,
   getOrderedPosts,
+  getPostsByTag,
   getPostPath,
   getTagPath,
   isDevelopmentDraft,
-} from '../../lib/blog';
+} from '../../../lib/blog';
 
-const posts = getOrderedPosts(await getCollection('blog'));
+export async function getStaticPaths() {
+  const posts = getOrderedPosts(await getCollection('blog'));
+  const tagEntries = getTagEntries(getAllTags(posts));
+
+  return tagEntries.map(({ display, identity }) => ({
+    params: { tag: identity },
+    props: { tag: display, tagIdentity: identity, posts: getPostsByTag(posts, display) },
+  }));
+}
+
+const { tag, tagIdentity, posts } = Astro.props;
 ---
 
 <SiteLayout
-  title="Blog // upiscium"
-  description="upiscium の設計・実装・運用に関する技術ブログの記事一覧。"
+  title={`#${tag} // upiscium`}
+  description={`記事タグ「${tag}」の一覧。`}
 >
-  <main class="page" aria-labelledby="blog-title">
+  <main class="page" aria-labelledby="tag-title">
+    <a class="back-link" href="/blog/tags/">← All tags</a>
     <header class="page-header">
-      <p class="eyebrow">/blog</p>
-      <h1 id="blog-title">All posts</h1>
-      <p class="lead">設計・実装・運用のログ。</p>
+      <p class="eyebrow">/blog/tags/{tagIdentity}</p>
+      <h1 id="tag-title">#{tag}</h1>
     </header>
 
     {posts.length > 0 ? (
@@ -30,20 +43,7 @@ const posts = getOrderedPosts(await getCollection('blog'));
             <article class="card">
               <a class="card-link" href={getPostPath(post)}>
                 <div class="post-meta">
-                  <span>
-                    <span class="meta-label">Published</span>
-                    <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
-                  </span>
-                  <span>
-                    <span class="meta-label">Language</span>
-                    {post.data.lang}
-                  </span>
-                  {post.data.updatedAt && (
-                    <span>
-                      <span class="meta-label">Updated</span>
-                      <time datetime={post.data.updatedAt.toISOString()}>{formatDate(post.data.updatedAt)}</time>
-                    </span>
-                  )}
+                  <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
                   {isDevelopmentDraft(post) && (
                     <span class="draft-badge">DRAFT · DEVELOPMENT</span>
                   )}
@@ -51,19 +51,17 @@ const posts = getOrderedPosts(await getCollection('blog'));
                 <h2>{post.data.title}</h2>
                 <p>{post.data.description}</p>
               </a>
-              {post.data.tags.length > 0 && (
-                <ul class="tags" aria-label={`Tags for ${post.data.title}`}>
-                  {post.data.tags.map((tag: string) => (
-                    <li><a href={getTagPath(tag)}>#{tag}</a></li>
-                  ))}
-                </ul>
-              )}
+              <ul class="tags" aria-label={`Tags for ${post.data.title}`}>
+                {post.data.tags.map((postTag: string) => (
+                  <li><a href={getTagPath(postTag)}>#{postTag}</a></li>
+                ))}
+              </ul>
             </article>
           </li>
         ))}
       </ol>
     ) : (
-      <p class="empty">No posts have been published yet.</p>
+      <p class="empty">No posts use this tag yet.</p>
     )}
   </main>
 </SiteLayout>
@@ -72,6 +70,19 @@ const posts = getOrderedPosts(await getCollection('blog'));
   .page {
     width: min(900px, 100%);
     margin: 0 auto;
+  }
+
+  .back-link,
+  .eyebrow,
+  .post-meta,
+  .draft-badge {
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: 32px;
   }
 
   .page-header {
@@ -92,20 +103,9 @@ const posts = getOrderedPosts(await getCollection('blog'));
   .eyebrow,
   .post-meta,
   .draft-badge {
-    color: var(--accent);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.8rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-  }
-
-  .post-meta > span {
-    display: inline-flex;
-    gap: 6px;
-  }
-
-  .meta-label {
-    color: var(--muted);
   }
 
   .lead,
@@ -124,9 +124,9 @@ const posts = getOrderedPosts(await getCollection('blog'));
   }
 
   .card {
+    padding: 20px;
     border: 1px solid var(--line);
     border-radius: 18px;
-    padding: 20px;
     background: var(--panel);
   }
 
