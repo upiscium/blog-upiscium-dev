@@ -75,7 +75,7 @@ function createProjectFixture(prefix, setup = () => {}) {
 
 function removeProjectFixture(fixtureRoot) {
   assert.equal(dirname(fixtureRoot), projectRoot);
-  assert.match(basename(fixtureRoot), /^\.blog-core-(?:content|build)-/);
+  assert.match(basename(fixtureRoot), /^\.blog-core-(?:content|build|metadata)-/);
   rmSync(fixtureRoot, { recursive: true, force: true });
 }
 
@@ -127,12 +127,50 @@ Published fixture content.
   return { fixtureRoot, tag };
 }
 
-function readFixtureBuiltPage(fixtureRoot, relativePath) {
-  return readFileSync(join(fixtureRoot, 'dist', relativePath), 'utf8');
+function createMetadataFixture() {
+  const fixtureRoot = createProjectFixture('metadata', (fixtureRoot) => {
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/draft-preview.md'),
+      `---
+slug: draft-preview
+lang: en
+title: Draft Navigation Fixture
+description: A draft-only post used to verify production route exclusion.
+publishedAt: 2026-04-09
+tags:
+  - draft-only
+draft: true
+origin:
+  platform: Example
+  url: https://example.com/draft-preview
+---
+
+This post is intentionally unpublished.
+`,
+    );
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/updated-at-preview.md'),
+      `---
+slug: updated-at-preview
+lang: en
+title: Updated Metadata Fixture
+description: A temporary article used to verify optional updatedAt rendering.
+publishedAt: 2026-04-10
+updatedAt: 2026-04-15
+tags:
+  - metadata
+---
+
+This article verifies published metadata rendering.
+`,
+    );
+  });
+
+  return fixtureRoot;
 }
 
-function readBuiltPage(relativePath) {
-  return readFileSync(join(projectRoot, 'dist', relativePath), 'utf8');
+function readFixtureBuiltPage(fixtureRoot, relativePath) {
+  return readFileSync(join(fixtureRoot, 'dist', relativePath), 'utf8');
 }
 
 function getRenderedCard(html, slug) {
@@ -213,13 +251,13 @@ async function stopAstroDevServer(server) {
   }
 }
 
-async function startAstroDevServer() {
+async function startAstroDevServer(cwd = projectRoot) {
   const port = await getFreePort();
   const server = spawn(
     astroCli,
     ['dev', '--host', '127.0.0.1', '--port', String(port)],
     {
-      cwd: projectRoot,
+      cwd,
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
     },
@@ -260,6 +298,14 @@ test('blog listing template renders language and optional updatedAt metadata', (
   assert.match(source, /datetime=\{post\.data\.updatedAt\.toISOString\(\)\}/);
 });
 
+test('canonical blog content contains no test-only metadata fixtures', () => {
+  assert.equal(existsSync(join(projectRoot, 'src/content/blog/draft-preview.md')), false);
+  assert.doesNotMatch(
+    readFileSync(join(projectRoot, 'src/content/blog/first-log.md'), 'utf8'),
+    /^updatedAt:/m,
+  );
+});
+
 test('visibility options cover production exclusion and development inclusion', () => {
   const published = makePost('published');
   const draft = makePost('draft', { draft: true });
@@ -276,53 +322,62 @@ test('visibility options cover production exclusion and development inclusion', 
 });
 
 test('tag entries preserve arbitrary display labels while generating safe paths', () => {
-  const displayTags = ['C++', '設計 / UI', '日本語'];
+  const displayTags = ['C++', 'C#', 'NixOS', '設計 / UI', '日本語'];
   const entries = getTagEntries(displayTags);
 
   assert.deepEqual(
     entries.map((entry) => entry.display).sort(),
     [...displayTags].sort(),
   );
-  assert.equal(getTagIdentity('C++'), 'c');
-  assert.equal(getTagPath('C++'), '/blog/tags/c/');
-  assert.equal(getTagIdentity('日本語'), 'tag-65e5672c8a9e');
+  assert.equal(getTagIdentity('C++'), 'tag-432b2b');
+  assert.equal(getTagIdentity('C#'), 'tag-4323');
+  assert.equal(getTagIdentity('NixOS'), 'tag-4e69784f53');
+  assert.equal(getTagIdentity('日本語'), 'tag-e697a5e69cace8aa9e');
+  assert.equal(getTagPath('C++'), '/blog/tags/tag-432b2b/');
+  assert.equal(new Set(entries.map((entry) => entry.identity)).size, displayTags.length);
+  assert.deepEqual(getTagEntries([...displayTags].reverse()), entries);
   assert.ok(entries.every((entry) => /^\/blog\/tags\/[a-z0-9]+(?:-[a-z0-9]+)*\/$/.test(entry.path)));
   assert.ok(entries.every((entry) => entry.path !== `/blog/tags/${entry.display}/`));
 });
 
-test('canonical-equivalent fallback labels collide before route generation', () => {
+test('canonical-equivalent labels collide before route generation', () => {
   const composed = '\uac00';
   const decomposed = '\u1100\u1161';
 
-  assert.equal(getTagIdentity(composed), 'tag-ac00');
-  assert.equal(getTagIdentity(decomposed), 'tag-ac00');
+  assert.equal(getTagIdentity(composed), 'tag-eab080');
+  assert.equal(getTagIdentity(decomposed), 'tag-eab080');
   assert.throws(
     () => assertUniqueTagIdentities([composed, decomposed]),
-    /Tag identity collision.*tag-ac00/,
+    /Tag identity collision.*tag-eab080/,
   );
 });
 
 test('tag routes filter by the original display value', () => {
   const plusPlus = makePost('plus-plus', { tags: ['C++'] });
+  const sharp = makePost('sharp', { tags: ['C#'] });
+  const nixos = makePost('nixos', { tags: ['NixOS'] });
   const japanese = makePost('japanese', { tags: ['日本語'] });
   const routeSource = readFileSync(
     new URL('../src/pages/blog/tags/[tag].astro', import.meta.url),
     'utf8',
   );
 
-  assert.deepEqual(getAllTags([plusPlus, japanese]), ['C++', '日本語']);
-  assert.deepEqual(getPostsByTag([plusPlus, japanese], 'C++'), [plusPlus]);
-  assert.deepEqual(getPostsByTag([plusPlus, japanese], '日本語'), [japanese]);
+  const posts = [plusPlus, sharp, nixos, japanese];
+  assert.deepEqual(getAllTags(posts), ['C#', 'C++', 'NixOS', '日本語']);
+  assert.deepEqual(getPostsByTag(posts, 'C++'), [plusPlus]);
+  assert.deepEqual(getPostsByTag(posts, 'C#'), [sharp]);
+  assert.deepEqual(getPostsByTag(posts, 'NixOS'), [nixos]);
+  assert.deepEqual(getPostsByTag(posts, '日本語'), [japanese]);
   assert.match(routeSource, /params: \{ tag: identity \}/);
   assert.match(routeSource, /props: \{ tag: display, tagIdentity: identity/);
 });
 
 test('tag identity collisions fail closed before route generation', () => {
+  assert.doesNotThrow(() => assertUniqueTagIdentities(['C++', 'C#', 'NixOS', '日本語']));
   assert.throws(
-    () => assertUniqueTagIdentities(['C++', 'C#']),
-    /Tag identity collision.*c/,
+    () => getTagEntries(['a', ' a ']),
+    /Tag identity collision.*a/,
   );
-  assert.throws(() => getTagEntries(['a/b', 'a b']), /Tag identity collision.*a-b/);
 });
 
 test('origin validation preserves http/https and rejects credentials and other protocols', () => {
@@ -363,9 +418,13 @@ test('origin validation preserves http/https and rejects credentials and other p
 });
 
 test('development server serves draft routes with visible markers', async () => {
-  const { server, baseUrl, output } = await startAstroDevServer();
+  const fixtureRoot = createMetadataFixture();
+  let server;
 
   try {
+    const started = await startAstroDevServer(fixtureRoot);
+    ({ server } = started);
+    const { baseUrl, output } = started;
     const routes = [
       ['/', 'DRAFT · DEVELOPMENT', true],
       ['/blog/', 'DRAFT · DEVELOPMENT', true],
@@ -383,16 +442,29 @@ test('development server serves draft routes with visible markers', async () => 
         assert.ok(html.includes('Draft Navigation Fixture'), `missing draft title at ${route}`);
       }
       assert.ok(html.includes(marker), `missing visible draft marker at ${route}`);
+      if (route === '/blog/') {
+        assert.match(
+          html,
+          /<span class="meta-label"[^>]*>Updated<\/span>\s*<time[^>]*datetime="2026-04-15T00:00:00\.000Z"[^>]*>2026-04-15<\/time>/,
+        );
+      }
     }
   } finally {
-    await stopAstroDevServer(server);
+    if (server) {
+      await stopAstroDevServer(server);
+    }
+    removeProjectFixture(fixtureRoot);
   }
 });
 
 test('development tag index preserves draft tag identity, display, and count', async () => {
-  const { server, baseUrl, output } = await startAstroDevServer();
+  const fixtureRoot = createMetadataFixture();
+  let server;
 
   try {
+    const started = await startAstroDevServer(fixtureRoot);
+    ({ server } = started);
+    const { baseUrl, output } = started;
     const response = await fetch(`${baseUrl}/blog/tags/`);
     const html = await response.text();
 
@@ -407,7 +479,10 @@ test('development tag index preserves draft tag identity, display, and count', a
     assert.match(draftTagEntry, /DRAFT · DEVELOPMENT/);
     assert.match(draftTagEntry, />1 posts<\/span>/);
   } finally {
-    await stopAstroDevServer(server);
+    if (server) {
+      await stopAstroDevServer(server);
+    }
+    removeProjectFixture(fixtureRoot);
   }
 });
 
@@ -439,36 +514,47 @@ test('temporary production fixture builds arbitrary Unicode tags and published o
   }
 });
 
-test('production build renders metadata and excludes drafts from home, post, and tag routes', () => {
-  const result = runAstro(['build']);
-  assert.equal(result.status, 0, commandOutput(result));
+test('temporary production fixture renders metadata and excludes drafts from all routes', () => {
+  const fixtureRoot = createMetadataFixture();
 
-  const home = readBuiltPage('index.html');
-  const blogIndex = readBuiltPage('blog/index.html');
-  const tagsIndex = readBuiltPage('blog/tags/index.html');
-  const firstLogCard = getRenderedCard(blogIndex, 'first-log');
-  const terminalWorkflowCard = getRenderedCard(blogIndex, 'terminal-workflow');
+  try {
+    const result = runAstro(['build'], fixtureRoot);
+    assert.equal(result.status, 0, commandOutput(result));
 
-  assert.match(firstLogCard, /<span class="meta-label"[^>]*>Language<\/span>\s*ja/);
-  assert.match(
-    firstLogCard,
-    /<span class="meta-label"[^>]*>Updated<\/span>\s*<time datetime="2026-04-10T00:00:00\.000Z"[^>]*>2026-04-10<\/time>/,
-  );
-  assert.doesNotMatch(terminalWorkflowCard, /Updated/);
+    const home = readFixtureBuiltPage(fixtureRoot, 'index.html');
+    const blogIndex = readFixtureBuiltPage(fixtureRoot, 'blog/index.html');
+    const tagsIndex = readFixtureBuiltPage(fixtureRoot, 'blog/tags/index.html');
+    const updatedAtCard = getRenderedCard(blogIndex, 'updated-at-preview');
+    const terminalWorkflowCard = getRenderedCard(blogIndex, 'terminal-workflow');
 
-  assert.doesNotMatch(blogIndex, /Draft Navigation Fixture/);
-  assert.doesNotMatch(tagsIndex, /draft-only/);
-  assert.doesNotMatch(tagsIndex, /DRAFT · DEVELOPMENT/);
-  assert.doesNotMatch(home, /Draft Navigation Fixture/);
-  assert.doesNotMatch(home, /DRAFT · DEVELOPMENT/);
-  assert.ok(!existsSync(join(projectRoot, 'dist', 'blog', 'draft-preview', 'index.html')));
-  assert.ok(!existsSync(join(projectRoot, 'dist', 'blog', 'tags', 'draft-only', 'index.html')));
+    assert.match(updatedAtCard, /<span class="meta-label"[^>]*>Language<\/span>\s*en/);
+    assert.match(
+      updatedAtCard,
+      /<span class="meta-label"[^>]*>Updated<\/span>\s*<time[^>]*datetime="2026-04-15T00:00:00\.000Z"[^>]*>2026-04-15<\/time>/,
+    );
+    assert.match(
+      readFixtureBuiltPage(fixtureRoot, 'blog/updated-at-preview/index.html'),
+      /<dt[^>]*>Updated<\/dt>\s*<dd[^>]*>\s*<time[^>]*datetime="2026-04-15T00:00:00\.000Z"[^>]*>2026-04-15<\/time>/,
+    );
+    assert.doesNotMatch(updatedAtCard, /DRAFT/);
+    assert.doesNotMatch(terminalWorkflowCard, /Updated/);
 
-  assert.ok(existsSync(join(projectRoot, 'dist', 'blog', 'tags', 'architecture', 'index.html')));
-  assert.match(
-    readBuiltPage('blog/tags/architecture/index.html'),
-    /System Design Notes for Frontend/,
-  );
+    assert.doesNotMatch(blogIndex, /Draft Navigation Fixture/);
+    assert.doesNotMatch(tagsIndex, /draft-only/);
+    assert.doesNotMatch(tagsIndex, /DRAFT · DEVELOPMENT/);
+    assert.doesNotMatch(home, /Draft Navigation Fixture/);
+    assert.doesNotMatch(home, /DRAFT · DEVELOPMENT/);
+    assert.ok(!existsSync(join(fixtureRoot, 'dist', 'blog', 'draft-preview', 'index.html')));
+    assert.ok(!existsSync(join(fixtureRoot, 'dist', 'blog', 'tags', 'draft-only', 'index.html')));
+
+    assert.ok(existsSync(join(fixtureRoot, 'dist', 'blog', 'tags', 'architecture', 'index.html')));
+    assert.match(
+      readFixtureBuiltPage(fixtureRoot, 'blog/tags/architecture/index.html'),
+      /System Design Notes for Frontend/,
+    );
+  } finally {
+    removeProjectFixture(fixtureRoot);
+  }
 });
 
 test('duplicate effective slugs fail closed', () => {

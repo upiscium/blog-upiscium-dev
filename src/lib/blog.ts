@@ -4,6 +4,7 @@ export type BlogPost = CollectionEntry<'blog'>;
 
 const canonicalSlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const canonicalTagIdentityPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const encodedTagIdentityPattern = /^tag-[0-9a-f]+$/;
 
 function isProductionBuild(): boolean {
   return typeof import.meta.env !== 'undefined' && import.meta.env.PROD;
@@ -17,33 +18,32 @@ function validateTagDisplay(tag: string): string {
   return tag;
 }
 
-function getFallbackTagIdentity(tag: string): string {
+function getEncodedTagIdentity(tag: string): string {
   const normalizedTag = tag.trim().normalize('NFC');
-  const codePoints = Array.from(normalizedTag, (character) =>
-    (character.codePointAt(0) ?? 0).toString(16),
-  ).join('');
+  const bytes = new TextEncoder().encode(normalizedTag);
+  const encoded = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 
-  return `tag-${codePoints}`;
+  return `tag-${encoded}`;
 }
 
 /**
- * Convert an arbitrary display label into the stable URL identity used by tag routes.
+ * Convert a display label into the stable URL identity used by tag routes.
  *
- * Display labels are deliberately not rewritten: punctuation, whitespace, and non-ASCII
- * characters remain visible to readers. The identity is only a route key. Labels that
- * normalize to the same key are rejected by assertUniqueTagIdentities instead of being
- * silently merged into one route.
+ * Existing canonical labels retain their readable route identities. All other labels use
+ * the UTF-8 hex encoding of their NFC-normalized form, which is URL-safe and injective for
+ * normalized labels. Display labels are deliberately not rewritten: punctuation, whitespace,
+ * case, and non-ASCII characters remain visible to readers. Labels that normalize to the same
+ * key are rejected by assertUniqueTagIdentities instead of being silently merged into one route.
  */
 export function getTagIdentity(tag: string): string {
   const displayTag = validateTagDisplay(tag);
-  const identity = displayTag
-    .trim()
-    .normalize('NFKD')
-    .toLowerCase()
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  const routeIdentity = identity || getFallbackTagIdentity(displayTag);
+  const normalizedTag = displayTag.trim().normalize('NFC');
+  const keepsCanonicalIdentity =
+    canonicalTagIdentityPattern.test(normalizedTag) &&
+    !encodedTagIdentityPattern.test(normalizedTag);
+  const routeIdentity = keepsCanonicalIdentity
+    ? normalizedTag
+    : getEncodedTagIdentity(normalizedTag);
 
   if (!canonicalTagIdentityPattern.test(routeIdentity)) {
     throw new Error(`Invalid blog tag identity "${routeIdentity}" for "${tag}".`);
@@ -82,8 +82,9 @@ export function assertUniqueEffectiveSlugs(posts: readonly BlogPost[]): void {
 /**
  * Ensure every distinct display label has a distinct route identity.
  *
- * Slugification intentionally drops information (for example, `C++` and `C#` both
- * become `c`). Failing before route generation keeps one label from shadowing another.
+ * Encoded identities preserve labels that would otherwise lose information (for example,
+ * `C++` and `C#`). Failing before route generation also protects against a collision caused
+ * by normalization or a future identity-algorithm change.
  */
 export function assertUniqueTagIdentities(tags: readonly string[]): void {
   const tagsByIdentity = new Map<string, string>();
