@@ -2,24 +2,24 @@ root := justfile_directory()
 
 [working-directory: root]
 doctor:
-    @echo "Base Project Adapter doctor: PASS"
+    @echo "pnpm project doctor: PASS (read-only)"
 
 [working-directory: root]
 format-check:
-    @echo "Base Project Adapter format-check: SKIPPED"
+    @echo "pnpm format-check: SKIPPED (no package.json script)"
 
 [working-directory: root]
 lint:
-    @echo "Base Project Adapter lint: SKIPPED"
+    @echo "pnpm lint: SKIPPED (no package.json script)"
 
 [working-directory: root]
 test:
-    @echo "Base Project Adapter test: SKIPPED"
+    pnpm run test
 
 [working-directory: root]
 build:
-    @echo "Base Project Adapter build: SKIPPED"
+    pnpm run build
 
 [working-directory: root]
 check: doctor format-check lint test build
-    @echo "Base Project Adapter check: PASS"
+    pnpm run check
