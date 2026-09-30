@@ -17,6 +17,8 @@
     "@types/node": "^20",
     "astro": "^6.4.8",
     "remark-gfm": "^4.0.1",
-    "typescript": "^5"
+    "remark-parse": "^11.0.0",
+    "typescript": "^5",
+    "unified": "^11.0.5"
   }
 }
