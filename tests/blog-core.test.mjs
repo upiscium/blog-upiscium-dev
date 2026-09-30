@@ -6,7 +6,7 @@ import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   assertUniqueEffectiveSlugs,
   assertUniqueTagIdentities,
@@ -17,6 +17,7 @@ import {
   getPostsByTag,
   getVisiblePosts,
 } from '../src/lib/blog.ts';
+import { qiitaMarkdownValidationIntegration } from '../src/lib/markdown/qiita-compat.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const astroCli = join(projectRoot, 'node_modules', '.bin', 'astro');
@@ -56,6 +57,17 @@ function commandOutput(result) {
   return [result.stdout, result.stderr].filter(Boolean).join('\n');
 }
 
+function decodeHtmlText(value) {
+  return value
+    .replace(/&#x([\da-f]+);/giu, (_, codePoint) => String.fromCodePoint(Number.parseInt(codePoint, 16)))
+    .replace(/&#(\d+);/gu, (_, codePoint) => String.fromCodePoint(Number.parseInt(codePoint, 10)))
+    .replace(/&lt;/gu, '<')
+    .replace(/&gt;/gu, '>')
+    .replace(/&quot;/gu, '"')
+    .replace(/&apos;/gu, "'")
+    .replace(/&amp;/gu, '&');
+}
+
 function createProjectFixture(prefix, setup = () => {}) {
   const fixtureRoot = mkdtempSync(join(projectRoot, `.blog-core-${prefix}-`));
 
@@ -75,7 +87,10 @@ function createProjectFixture(prefix, setup = () => {}) {
 
 function removeProjectFixture(fixtureRoot) {
   assert.equal(dirname(fixtureRoot), projectRoot);
-  assert.match(basename(fixtureRoot), /^\.blog-core-(?:content|build|metadata)-/);
+  assert.match(
+    basename(fixtureRoot),
+    /^\.blog-core-(?:content|build|metadata|markdown|token-boundary|delimiter-boundary)-/,
+  );
   rmSync(fixtureRoot, { recursive: true, force: true });
 }
 
@@ -167,6 +182,264 @@ This article verifies published metadata rendering.
   });
 
   return fixtureRoot;
+}
+
+function createMarkdownCompatibilityFixture() {
+  return createProjectFixture('markdown', (fixtureRoot) => {
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/markdown-compatibility.md'),
+      `---
+slug: markdown-compatibility
+lang: en
+title: Markdown Compatibility Fixture
+description: A temporary fixture for Qiita Markdown compatibility.
+publishedAt: 2026-04-16
+tags: []
+---
+
+# Markdown compatibility fixture
+
+:::note
+This default note is **informative**, has ~~strike~~ and \`inline code\`.
+:::
+
+:::note info
+The explicit info note keeps ordinary Markdown **emphasis**.
+:::
+
+:::note warn
+- a list item
+- ~~struck text~~
+- \`code span\`
+- [a link](https://example.com/compatibility)
+- ![an image](https://example.com/compatibility.png)
+
+\`\`\`js:src/<unsafe>&"quote".js
+const value = "<script>alert('no')</script>";
+\`\`\`
+:::
+
+:::note alert
+This alert note has a visible semantic label.
+:::
+
+<details>
+<summary>Details Summary</summary>
+
+Markdown **inside** the details container.
+
+- details list item
+
+</details>
+
+One footnote[^one] and another[^two].
+
+[^one]: First footnote.
+[^two]: Second footnote.
+
+\`\`\`javascript
+const ordinary = true;
+\`\`\`
+
+\`\`\`text
+:::note danger
+This marker is code, not a note.
+:::
+\`\`\`
+`,
+    );
+  });
+}
+
+function createMarkdownFailureFixture(prefix, body) {
+  return createProjectFixture(prefix, (fixtureRoot) => {
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/markdown-failure.md'),
+      `---
+slug: markdown-failure
+lang: en
+title: Markdown Failure Fixture
+description: A temporary invalid Markdown fixture.
+publishedAt: 2026-04-17
+tags: []
+---
+
+${body}
+`,
+    );
+  });
+}
+
+function createMarkdownBoundaryFixture() {
+  return createProjectFixture('markdown-boundary', (fixtureRoot) => {
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/markdown-boundary.md'),
+      `---
+slug: markdown-boundary
+lang: en
+title: Markdown Boundary Fixture
+description: |
+  Metadata marker text must not become a note.
+  :::note danger
+  metadata-only-marker
+  :::
+publishedAt: 2026-04-18
+tags: []
+---
+
+<section class="trusted-markers">
+:::note danger
+raw-html-note-marker
+:::
+</section>
+`,
+    );
+  });
+}
+
+function createMarkdownTokenBoundaryFixture() {
+  return createProjectFixture('token-boundary', (fixtureRoot) => {
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/markdown-token-boundary.md'),
+      `---
+slug: markdown-token-boundary
+lang: en
+title: Markdown Token Boundary Fixture
+description: A temporary fixture for AST-aware note boundaries.
+publishedAt: 2026-04-19
+tags: []
+---
+
+Multiline code span:
+
+\`\`
+:::note danger
+inline-code-marker
+:::
+\`\`
+
+Multiline link:
+
+[:::note danger
+link-marker
+:::](https://example.com/token-boundary)
+
+Multiline image:
+
+![:::note danger
+image-marker
+:::](https://example.com/token-boundary.png)
+
+Entity marker: &#x3a;&#x3a;&#x3a;note danger / &#x3a;&#x3a;&#x3a;
+Escaped marker: \\:\\:\\:note danger / \\:\\:\\:
+
+Inline HTML comment: <!--
+:::note danger
+inline-html-marker
+-->
+
+:::note
+Preserve &amp; &#x3c;tag&#x3e; and \\*escaped emphasis\\*.
+Line ending text stays intact.
+:::
+`.replace(/\n/gu, '\r\n'),
+    );
+  });
+}
+
+function createMarkdownFrontmatterBoundaryFixture() {
+  return createProjectFixture('markdown-frontmatter', (fixtureRoot) => {
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/leading-yaml-frontmatter.md'),
+      `
+
+---
+slug: leading-yaml-frontmatter
+lang: en
+title: Leading YAML Frontmatter Fixture
+description: |
+  Leading blank YAML metadata must not become a note.
+  :::note danger
+  yaml-frontmatter-marker
+  :::
+publishedAt: 2026-04-20
+tags: []
+---
+
+Leading YAML frontmatter fixture body.
+`,
+    );
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/toml-frontmatter.md'),
+      `\uFEFF+++
+slug = "toml-frontmatter"
+lang = "en"
+title = "TOML Frontmatter Fixture"
+description = """
+TOML metadata must not become a note.
+:::note danger
+toml-frontmatter-marker
+:::
+"""
+publishedAt = 2026-04-20T00:00:00Z
+tags = []
+${'+++'}
+
+TOML frontmatter fixture body.
+`,
+    );
+  });
+}
+
+function createMarkdownDelimiterBoundaryFixture() {
+  return createProjectFixture('delimiter-boundary', (fixtureRoot) => {
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/yaml-delimiter-boundary.md'),
+      `---
+slug: yaml-delimiter-boundary
+lang: en
+title: YAML Delimiter Boundary Fixture
+description: Metadata includes a TOML-looking delimiter.
+publishedAt: 2026-04-21
+tags: []
+${'+++'}
+:::note danger
+yaml-opposite-delimiter-marker
+:::
+...
+
+YAML delimiter boundary fixture body.
+`,
+    );
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/toml-delimiter-boundary.md'),
+      `+++
+slug = "toml-delimiter-boundary"
+lang = "en"
+title = "TOML Delimiter Boundary Fixture"
+description = """
+Metadata includes a YAML-looking delimiter.
+---
+:::note danger
+toml-opposite-delimiter-marker
+:::
+"""
+publishedAt = 2026-04-21T00:00:00Z
+tags = []
++++
+
+TOML delimiter boundary fixture body.
+`,
+    );
+  });
+}
+
+function validateMarkdownFixture(fixtureRoot) {
+  const setup = qiitaMarkdownValidationIntegration().hooks['astro:config:setup'];
+  setup({
+    command: 'build',
+    config: { root: pathToFileURL(`${fixtureRoot}/`) },
+  });
 }
 
 function readFixtureBuiltPage(fixtureRoot, relativePath) {
@@ -300,10 +573,236 @@ test('blog listing template renders language and optional updatedAt metadata', (
 
 test('canonical blog content contains no test-only metadata fixtures', () => {
   assert.equal(existsSync(join(projectRoot, 'src/content/blog/draft-preview.md')), false);
+  assert.equal(existsSync(join(projectRoot, 'src/content/blog/markdown-compatibility.md')), false);
+  assert.equal(existsSync(join(projectRoot, 'src/content/blog/markdown-token-boundary.md')), false);
   assert.doesNotMatch(
     readFileSync(join(projectRoot, 'src/content/blog/first-log.md'), 'utf8'),
     /^updatedAt:/m,
   );
+});
+
+test('temporary Markdown fixture renders Qiita notes, Markdown, fences, details, and footnotes', () => {
+  const fixtureRoot = createMarkdownCompatibilityFixture();
+
+  try {
+    const result = runAstro(['build'], fixtureRoot);
+    assert.equal(result.status, 0, commandOutput(result));
+
+    const html = readFixtureBuiltPage(
+      fixtureRoot,
+      'blog/markdown-compatibility/index.html',
+    );
+
+    assert.equal((html.match(/class="qiita-note qiita-note-/g) || []).length, 4);
+    assert.equal((html.match(/class="qiita-note qiita-note-info/g) || []).length, 2);
+    assert.match(html, /class="qiita-note qiita-note-warn/);
+    assert.match(html, /class="qiita-note qiita-note-alert/);
+    assert.match(html, /class="qiita-note-label">Info<\/p>/);
+    assert.match(html, /class="qiita-note-label">Warning<\/p>/);
+    assert.match(html, /class="qiita-note-label">Alert<\/p>/);
+
+    assert.match(html, /<ul>[\s\S]*a list item[\s\S]*<\/ul>/);
+    assert.match(html, /<strong>emphasis<\/strong>/);
+    assert.match(html, /<del>struck text<\/del>/);
+    assert.match(html, /<code>code span<\/code>/);
+    assert.match(html, /href="https:\/\/example\.com\/compatibility"/);
+    assert.match(html, /<img[^>]+src="https:\/\/example\.com\/compatibility\.png"/);
+
+    assert.match(html, /class="qiita-code-block"/);
+    const filenameCaption = html.match(
+      /<figcaption class="qiita-code-filename">([\s\S]*?)<\/figcaption>/,
+    );
+    assert.ok(filenameCaption, 'missing code filename caption');
+    assert.doesNotMatch(filenameCaption[1], /</u, 'filename must remain text, not markup');
+    assert.equal(decodeHtmlText(filenameCaption[1]), 'src/<unsafe>&"quote".js');
+    assert.match(html, /data-language="js"/);
+    assert.match(html, /data-language="javascript"/);
+    assert.match(html, /<details>[\s\S]*<summary>Details Summary<\/summary>/);
+    assert.match(html, /Details[\s\S]*<strong>inside<\/strong>/);
+
+    assert.equal((html.match(/data-footnote-ref/g) || []).length, 2);
+    assert.equal((html.match(/data-footnote-backref=""/g) || []).length, 2);
+    assert.match(html, /id="(?:user-content-)?fn-one"/);
+    assert.match(html, /id="(?:user-content-)?fn-two"/);
+
+    assert.match(html, /data-language="javascript"[\s\S]*ordinary[\s\S]*true/);
+    assert.doesNotMatch(html, /<script(?:\s|>)/i);
+  } finally {
+    removeProjectFixture(fixtureRoot);
+  }
+});
+
+test('raw HTML marker blocks and frontmatter marker text stay outside Qiita notes', () => {
+  const fixtureRoot = createMarkdownBoundaryFixture();
+
+  try {
+    const result = runAstro(['build'], fixtureRoot);
+    assert.equal(result.status, 0, commandOutput(result));
+
+    const html = readFixtureBuiltPage(fixtureRoot, 'blog/markdown-boundary/index.html');
+
+    assert.doesNotMatch(html, /class="qiita-note qiita-note-/);
+    assert.match(html, /<section class="trusted-markers">/);
+    assert.match(html, /raw-html-note-marker/);
+    assert.match(html, /metadata-only-marker/);
+  } finally {
+    removeProjectFixture(fixtureRoot);
+  }
+});
+
+test('leading blank YAML and BOM TOML frontmatter marker text stay outside Qiita notes', () => {
+  const fixtureRoot = createMarkdownFrontmatterBoundaryFixture();
+
+  try {
+    const result = runAstro(['build'], fixtureRoot);
+    assert.equal(result.status, 0, commandOutput(result));
+
+    for (const [slug, marker] of [
+      ['leading-yaml-frontmatter', 'yaml-frontmatter-marker'],
+      ['toml-frontmatter', 'toml-frontmatter-marker'],
+    ]) {
+      const html = readFixtureBuiltPage(fixtureRoot, `blog/${slug}/index.html`);
+      assert.doesNotMatch(html, /class="qiita-note qiita-note-/);
+      assert.match(html, new RegExp(marker));
+    }
+  } finally {
+    removeProjectFixture(fixtureRoot);
+  }
+});
+
+test('opposite frontmatter delimiters do not expose note-like metadata to the Qiita scanner', () => {
+  const fixtureRoot = createMarkdownDelimiterBoundaryFixture();
+
+  try {
+    assert.doesNotThrow(() => validateMarkdownFixture(fixtureRoot));
+  } finally {
+    removeProjectFixture(fixtureRoot);
+  }
+});
+
+test('Qiita boundaries respect multiline tokens and preserve decoded note text', () => {
+  const fixtureRoot = createMarkdownTokenBoundaryFixture();
+
+  try {
+    const result = runAstro(['build'], fixtureRoot);
+    assert.equal(result.status, 0, commandOutput(result));
+
+    const html = readFixtureBuiltPage(fixtureRoot, 'blog/markdown-token-boundary/index.html');
+    const notes = html.match(/class="qiita-note qiita-note-/g) || [];
+
+    assert.equal(notes.length, 1);
+    assert.match(html, /<code>[\s\S]*:::note danger[\s\S]*inline-code-marker[\s\S]*<\/code>/);
+    assert.match(html, /href="https:\/\/example\.com\/token-boundary"[\s\S]*:::note danger/);
+    assert.match(html, /src="https:\/\/example\.com\/token-boundary\.png"/);
+    assert.match(html, /Entity marker: :::note danger \/ :::/);
+    assert.match(html, /Escaped marker: :::note danger \/ :::/);
+    assert.match(html, /inline-html-marker/);
+
+    const note = html.match(/<aside class="qiita-note qiita-note-info[\s\S]*?<\/aside>/);
+    assert.ok(note, 'missing preserved note');
+    const preservedParagraph = note[0].match(/<p>([\s\S]*?)<\/p>/u);
+    assert.ok(preservedParagraph, 'missing preserved note text paragraph');
+    const preservedText = decodeHtmlText(preservedParagraph[1]).replace(/\r\n/gu, '\n');
+    assert.equal(
+      preservedText,
+      'Preserve & <tag> and *escaped emphasis*.\nLine ending text stays intact.',
+    );
+    assert.doesNotMatch(
+      preservedParagraph[1],
+      /<[^>]*>/u,
+       'escaped tag text must remain text, not markup',
+    );
+  } finally {
+    removeProjectFixture(fixtureRoot);
+  }
+});
+
+test('malformed, unknown, and nested Qiita notes fail with explicit diagnostics', () => {
+  const invalidFixtures = [
+    [
+      'markdown-unknown',
+      ':::note danger\nunknown type\n:::',
+      /Unsupported Qiita note type "danger"/,
+    ],
+    [
+      'markdown-unclosed',
+      ':::note warn\nunclosed note',
+      /Unclosed Qiita note/,
+    ],
+    [
+      'markdown-nested',
+      ':::note\nouter\n\n:::note info\ninner\n:::\n\n:::',
+      /Nested or unsupported Qiita container inside a note/,
+    ],
+    [
+      'markdown-unrecognized',
+      ':::callout\nunrecognized container\n:::',
+      /Unsupported Qiita container "callout"/,
+    ],
+    [
+      'markdown-raw-html-note',
+      ':::note\n<div>raw HTML is not note content</div>\n:::',
+      /Raw HTML is not allowed inside Qiita notes/,
+    ],
+    [
+      'markdown-script-note',
+      ':::note\n<script>alert(1)</script>\n:::',
+      /Raw HTML is not allowed inside Qiita notes/,
+    ],
+    [
+      'markdown-embed-note',
+      ':::note\n<embed src="javascript:alert(1)">\n:::',
+      /Raw HTML is not allowed inside Qiita notes/,
+    ],
+    [
+      'markdown-javascript-url-note',
+      ':::note\n<a href="javascript:alert(1)">unsafe URL</a>\n:::',
+      /Raw HTML is not allowed inside Qiita notes/,
+    ],
+  ];
+
+  for (const [prefix, body, expectedDiagnostic] of invalidFixtures) {
+    const fixtureRoot = createMarkdownFailureFixture(prefix, body);
+
+    try {
+      const result = runAstro(['build'], fixtureRoot);
+
+      assert.notEqual(result.status, 0, `${prefix} unexpectedly built`);
+      assert.match(commandOutput(result), expectedDiagnostic);
+    } finally {
+      removeProjectFixture(fixtureRoot);
+    }
+  }
+});
+
+test('line-start malformed markers fail closed despite trailing multiline tokens', () => {
+  const invalidFixtures = [
+    [
+      'markdown-trailing-link',
+      ':::note danger [trailing link\nlabel](https://example.com)',
+    ],
+    [
+      'markdown-trailing-image',
+      ':::note danger ![trailing image\nalt](https://example.com/image.png)',
+    ],
+    [
+      'markdown-trailing-html',
+      ':::note danger <span\nclass="trailing-token">text</span>',
+    ],
+  ];
+
+  for (const [prefix, body] of invalidFixtures) {
+    const fixtureRoot = createMarkdownFailureFixture(prefix, body);
+
+    try {
+      const result = runAstro(['build'], fixtureRoot);
+
+      assert.notEqual(result.status, 0, `${prefix} unexpectedly built`);
+      assert.match(commandOutput(result), /Malformed Qiita note type/);
+    } finally {
+      removeProjectFixture(fixtureRoot);
+    }
+  }
 });
 
 test('visibility options cover production exclusion and development inclusion', () => {

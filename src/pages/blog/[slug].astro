@@ -198,6 +198,72 @@ const { Content } = await render(post);
     background: rgba(10, 18, 36, 0.82);
   }
 
+  .content :global(.qiita-code-block) {
+    margin: 1rem 0;
+    border: 1px solid rgba(93, 243, 255, 0.18);
+    border-radius: 16px;
+    background: rgba(10, 18, 36, 0.82);
+  }
+
+  .content :global(.qiita-code-block pre) {
+    margin: 0;
+    border: 0;
+    border-radius: 0 0 16px 16px;
+  }
+
+  .content :global(.qiita-code-filename) {
+    display: block;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(93, 243, 255, 0.18);
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+  }
+
+  .content :global(.qiita-note) {
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem;
+    border: 1px solid;
+    border-radius: 16px;
+  }
+
+  .content :global(.qiita-note-label) {
+    margin: 0 0 0.7rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .content :global(.qiita-note-info) {
+    border-color: rgba(93, 243, 255, 0.52);
+    background: rgba(93, 243, 255, 0.08);
+  }
+
+  .content :global(.qiita-note-info .qiita-note-label) {
+    color: var(--accent);
+  }
+
+  .content :global(.qiita-note-warn) {
+    border-color: rgba(255, 207, 92, 0.62);
+    background: rgba(255, 207, 92, 0.08);
+  }
+
+  .content :global(.qiita-note-warn .qiita-note-label) {
+    color: #ffcf5c;
+  }
+
+  .content :global(.qiita-note-alert) {
+    border-color: rgba(255, 116, 146, 0.68);
+    background: rgba(255, 116, 146, 0.09);
+  }
+
+  .content :global(.qiita-note-alert .qiita-note-label) {
+    color: #ff7492;
+  }
+
   .content :global(code) {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
