@@ -6,7 +6,7 @@ import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   assertUniqueEffectiveSlugs,
   assertUniqueTagIdentities,
@@ -17,6 +17,7 @@ import {
   getPostsByTag,
   getVisiblePosts,
 } from '../src/lib/blog.ts';
+import { qiitaMarkdownValidationIntegration } from '../src/lib/markdown/qiita-compat.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const astroCli = join(projectRoot, 'node_modules', '.bin', 'astro');
@@ -88,7 +89,7 @@ function removeProjectFixture(fixtureRoot) {
   assert.equal(dirname(fixtureRoot), projectRoot);
   assert.match(
     basename(fixtureRoot),
-    /^\.blog-core-(?:content|build|metadata|markdown|token-boundary)-/,
+    /^\.blog-core-(?:content|build|metadata|markdown|token-boundary|delimiter-boundary)-/,
   );
   rmSync(fixtureRoot, { recursive: true, force: true });
 }
@@ -390,6 +391,57 @@ TOML frontmatter fixture body.
   });
 }
 
+function createMarkdownDelimiterBoundaryFixture() {
+  return createProjectFixture('delimiter-boundary', (fixtureRoot) => {
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/yaml-delimiter-boundary.md'),
+      `---
+slug: yaml-delimiter-boundary
+lang: en
+title: YAML Delimiter Boundary Fixture
+description: Metadata includes a TOML-looking delimiter.
+publishedAt: 2026-04-21
+tags: []
+${'+++'}
+:::note danger
+yaml-opposite-delimiter-marker
+:::
+...
+
+YAML delimiter boundary fixture body.
+`,
+    );
+    writeFileSync(
+      join(fixtureRoot, 'src/content/blog/toml-delimiter-boundary.md'),
+      `+++
+slug = "toml-delimiter-boundary"
+lang = "en"
+title = "TOML Delimiter Boundary Fixture"
+description = """
+Metadata includes a YAML-looking delimiter.
+---
+:::note danger
+toml-opposite-delimiter-marker
+:::
+"""
+publishedAt = 2026-04-21T00:00:00Z
+tags = []
++++
+
+TOML delimiter boundary fixture body.
+`,
+    );
+  });
+}
+
+function validateMarkdownFixture(fixtureRoot) {
+  const setup = qiitaMarkdownValidationIntegration().hooks['astro:config:setup'];
+  setup({
+    command: 'build',
+    config: { root: pathToFileURL(`${fixtureRoot}/`) },
+  });
+}
+
 function readFixtureBuiltPage(fixtureRoot, relativePath) {
   return readFileSync(join(fixtureRoot, 'dist', relativePath), 'utf8');
 }
@@ -613,6 +665,16 @@ test('leading blank YAML and BOM TOML frontmatter marker text stay outside Qiita
       assert.doesNotMatch(html, /class="qiita-note qiita-note-/);
       assert.match(html, new RegExp(marker));
     }
+  } finally {
+    removeProjectFixture(fixtureRoot);
+  }
+});
+
+test('opposite frontmatter delimiters do not expose note-like metadata to the Qiita scanner', () => {
+  const fixtureRoot = createMarkdownDelimiterBoundaryFixture();
+
+  try {
+    assert.doesNotThrow(() => validateMarkdownFixture(fixtureRoot));
   } finally {
     removeProjectFixture(fixtureRoot);
   }

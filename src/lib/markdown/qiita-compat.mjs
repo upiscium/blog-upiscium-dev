@@ -371,9 +371,9 @@ function stripFrontmatter(source) {
   const firstLine = lines[openingIndex]?.content.replace(/^\uFEFF/u, '');
   const closingDelimiter =
     /^---[ \t]*$/u.test(firstLine ?? '')
-      ? /^(?:---|\.\.\.|\+\+\+)[ \t]*$/u
+      ? /^(?:---|\.\.\.)[ \t]*$/u
       : /^\+\+\+[ \t]*$/u.test(firstLine ?? '')
-        ? /^(?:\+\+\+|---)[ \t]*$/u
+        ? /^\+\+\+[ \t]*$/u
         : null;
 
   if (!closingDelimiter) {
