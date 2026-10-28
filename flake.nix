@@ -17,6 +17,10 @@
           pkgs.nodejs_22
           pkgs.pnpm
           justPkgs.just
+          pkgs.python3
+          pkgs.git
+          pkgs.gh
+          pkgs.jq
         ];
       };
     };
