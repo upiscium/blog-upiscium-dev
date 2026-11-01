@@ -10,7 +10,8 @@
     "build": "astro build",
     "start": "astro preview",
     "check": "astro check",
-    "test": "node --experimental-strip-types --test tests/blog-core.test.mjs"
+    "test": "node --experimental-strip-types --test tests/blog-core.test.mjs tests/deployment.test.mjs",
+    "test:deployment": "node --test tests/deployment.test.mjs"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
