@@ -46,3 +46,7 @@ pnpm dev
 pnpm build
 pnpm start
 ```
+
+## Deployment
+
+See the [self-hosted static-site deployment proposal](docs/deployment/self-hosted-static-site.md).
